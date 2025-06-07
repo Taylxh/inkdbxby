@@ -1,20 +1,20 @@
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
-from handlers.menu import menu_handler
+from telegram.ext import ApplicationBuilder
+from handlers.menu import menu_handler, menu_button_handler
 from handlers.custom import custom_handler
-from logic import handle_message
+from handlers.message import message_handler
 from constants import BOT_TOKEN
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Menu & custom routes
+    # Button menus and custom commands
     app.add_handler(menu_handler)
+    app.add_handler(menu_button_handler)
     app.add_handler(custom_handler)
 
-    # General fallback handler
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Fallback handler (Nova’s main chat logic)
+    app.add_handler(message_handler)
 
-    # Start the bot
     print("Nova is now running as the Inkdbxby bot...")
     app.run_polling()
 
