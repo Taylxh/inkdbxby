@@ -1,44 +1,70 @@
-import json
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from constants import TRACKER_SHEET_NAME
 import os
-from sheets import check_payment_proof, get_fan_rank
+from datetime import datetime
 
-MEMORY_FILE = "fan_memory.json"
+# Connect to Google Sheets
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds_path = "august-strata-461702g8-0315be2e0965.json"
+creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
+client = gspread.authorize(creds)
+sheet = client.open_by_key(os.getenv("INKDBXBY_CONTENT_VAULT")).worksheet(TRACKER_SHEET_NAME)
 
-def load_memory():
-    if not os.path.exists(MEMORY_FILE):
-        return {}
-    with open(MEMORY_FILE, "r") as f:
-        return json.load(f)
+# Lookup user row
+def get_user_row(user_id):
+    records = sheet.get_all_records()
+    for idx, row in enumerate(records, start=2):  # start=2 skips headers
+        if str(row.get("user_id")) == str(user_id):
+            return idx, row
+    return None, None
 
-def save_memory(memory):
-    with open(MEMORY_FILE, "w") as f:
-        json.dump(memory, f)
+# Public: Get user data by ID
+def get_user_data(user_id):
+    _, row = get_user_row(user_id)
+    return row
 
-def update_fan_memory(user_id, text):
-    memory = load_memory()
-    if str(user_id) not in memory:
-        memory[str(user_id)] = {"kinks": [], "spend": 0}
-    memory[str(user_id)]["kinks"].append(text)
-    save_memory(memory)
+# Public: Update or create fan memory
+def update_user_data(user_id, username=None, kink=None, amount=None):
+    idx, row = get_user_row(user_id)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def get_fan_memory(user_id):
-    memory = load_memory()
-    fan_data = memory.get(str(user_id), {})
-    return "\n".join(fan_data.get("kinks", []))
+    if row:  # Update existing row
+        if username:
+            sheet.update_cell(idx, 2, username)
 
-def add_spend(user_id, amount):
-    memory = load_memory()
-    if str(user_id) not in memory:
-        memory[str(user_id)] = {"kinks": [], "spend": 0}
-    memory[str(user_id)]["spend"] += amount
-    save_memory(memory)
+        if kink:
+            existing = row.get("kinks", "")
+            kink_list = [k.strip() for k in existing.split(",") if k.strip()]
+            if kink not in kink_list:
+                kink_list.append(kink)
+                updated_kinks = ", ".join(kink_list)
+                sheet.update_cell(idx, 3, updated_kinks)
 
-def get_spend(user_id):
-    memory = load_memory()
-    return memory.get(str(user_id), {}).get("spend", 0)
+        if amount:
+            try:
+                current_spend = float(row.get("total_spent", 0)) or 0
+            except:
+                current_spend = 0
+            updated_spend = current_spend + amount
+            sheet.update_cell(idx, 4, updated_spend)
 
-def get_fan_rank(user_id):
-    return get_fan_rank(user_id)
+        sheet.update_cell(idx, 5, now)  # last interaction
+    else:  # Add new fan
+        sheet.append_row([
+            str(user_id),
+            username or "",
+            kink or "",
+            amount or 0,
+            now
+        ])
 
-def check_proof_sheet(user_id):
-    return check_payment_proof(user_id)
+# Public: Check if user spent over X
+def has_spent_over(user_id, threshold):
+    row = get_user_data(user_id)
+    if not row:
+        return False
+    try:
+        return float(row.get("total_spent", 0)) >= threshold
+    except:
+        return False
