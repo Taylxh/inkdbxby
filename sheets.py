@@ -4,9 +4,9 @@ from constants import VAULT_SHEET_NAME, PROOF_SHEET_NAME, TRACKER_SHEET_NAME
 import os
 from datetime import datetime
 
-# Google Sheets auth setup
+# Google Sheets auth setup using file directly in repo
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds_path = os.getenv("GOOGLE_SHEETS_KEY")
+creds_path = "august-strata-461702g8-0315be2e0965.json"
 creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(os.getenv("INKDBXBY_CONTENT_VAULT"))
